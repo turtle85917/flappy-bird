@@ -6,6 +6,8 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hndada/gosu/draws"
 )
 
 const (
@@ -18,6 +20,9 @@ var (
 	deepbackground = color.RGBA{65, 150, 200, 255}
 	ground         = color.RGBA{73, 53, 12, 255}
 	deepground     = color.RGBA{64, 46, 11, 255}
+
+	player      Player
+	playerImage *ebiten.Image
 
 	backgrounds = []Background{}
 
@@ -42,13 +47,59 @@ type Ground struct {
 	Sprite
 }
 
+type Player struct {
+	draws.Sprite
+	draws.Timer
+	Speed draws.Vector2
+}
+
 type Game struct{}
+
+func (player Player) Draw(screen *ebiten.Image) {
+	op := ebiten.DrawImageOptions{}
+	op.ColorM.ChangeHSV(1-player.Progress(0, 1), 1, 1)
+	player.Sprite.Draw(screen, op)
+}
+
+func newPlayer() Player {
+	sprite := draws.NewSpriteFromImage(playerImage)
+	sprite.Locate(screenSizeX/2, 0, draws.CenterBottom)
+	sprite.AxisReversed = [2]bool{false, true}
+	return Player{
+		Timer:  draws.NewTimer(24, 0),
+		Sprite: sprite,
+	}
+}
 
 func (g *Game) Update() error {
 	endlessX -= 10
 	if endlessX <= screenSizeX*-1 {
 		endlessX = screenSizeX
 	}
+
+	const gravity = 1.25
+	const glide = 2.25
+	const jumpPower = 12
+	player.Ticker()
+
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+		player.Speed.Y += jumpPower
+	}
+
+	if player.Speed.Y > 0 {
+		player.Speed.Y -= gravity
+	} else {
+		player.Speed.Y = -glide
+	}
+
+	player.Y += player.Speed.Y
+
+	if player.Y < 0 {
+		player.Y = screenSizeY / 2
+		player.Speed.Y = 0
+	}
+
+	player.X = 250
 
 	refresh()
 	return nil
@@ -71,6 +122,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		ebitenutil.DrawRect(screen, grounds[idx].x, grounds[idx].y, grounds[idx].w, grounds[idx].h, gclr)
 	}
+
+	player.Draw(screen)
 }
 
 func (g *Game) Layout(outsidewidth, outsideheight int) (screenwidth, screenheight int) {
@@ -101,6 +154,11 @@ func init() {
 		Background{Sprite{x: initX(-1), y: 0, w: screenSizeX, h: screenSizeY}},
 		Background{Sprite{x: initX(0), y: 0, w: screenSizeX, h: screenSizeY}},
 		Background{Sprite{x: initX(1), y: 0, w: screenSizeX, h: screenSizeY}})
+
+	playerImage = ebiten.NewImage(50, 50)
+	playerImage.Fill(color.RGBA{204, 231, 35, 255})
+
+	player = newPlayer()
 }
 
 func main() {
